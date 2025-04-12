@@ -124,6 +124,9 @@ for i in params/* ; do
 
     echo "Root CA certificate added to trust store."
 
+    # Cleanup
+    rm -f "x9pki-dev/$OUT_DIR/root.req"
+
   else
     echo "Root CA generation skipped."
   fi
