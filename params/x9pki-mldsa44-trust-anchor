@@ -2,34 +2,34 @@
 # Generic Options
 PROVIDER=
 FORMAT="PEM"
-OUT_DIR="x9pki-rsa4096-trust-chain"
+OUT_DIR="x9pki-mldsa44-trust-chain"
 
 # ======================
 # Trust Anchor: RSA 4096
 # ======================
 
-ROOT_ALG="RSA"
-ROOT_PARAMS="-pkeyopt bits:4096"
+ROOT_ALG="ml-dsa-44"
+ROOT_PARAMS=""
 # ROOT_VALIDITY_DAYS="7200"
 ROOT_TEMPLATE="root.profile"
-ROOT_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - 4096 RSA - ROOT CA 01"
+ROOT_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - ML-DSA-44 - ROOT CA 01"
 ROOT_GENERATE="yes"
 
 # =============
 # Use Case: CDN
 # =============
 
-CDN_ICA_ALG="ec"
-CDN_ICA_PARAMS="-pkeyopt group:secp384r1"
+CDN_ICA_ALG="ml-dsa-44"
+CDN_ICA_PARAMS=""
 CDN_ICA_VALIDITY_NOTBEFORE=""
 CDN_ICA_VALIDITY_NOTAFTER=""
 # CDN_ICA_VALIDITY_DAYS="1826"
 CDN_ICA_TEMPLATE="cdn-ica.profile"
-CDN_ICA_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - 4096 RSA - CDN CA 01"
+CDN_ICA_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - ML-DSA-44 - CDN CA 01"
 CDN_ICA_GENERATE="yes"
 
-CDN_EE_ALG="ec"
-CDN_EE_PARAMS="-pkeyopt group:secp384r1"
+CDN_EE_ALG="ml-dsa-44"
+CDN_EE_PARAMS=""
 CDN_EE_VALIDITY_DAYS="729"
 CDN_EE_TEMPLATE="cdn-ee.profile"
 CDN_EE_SUBJECT_NAME="/CN=X9 Financial PKI - CDN EE"
@@ -39,17 +39,17 @@ CDN_EE_GENERATE="yes"
 # Use Case: ISO20022
 # ==================
 
-ISO20022_ICA_ALG="ec"
-ISO20022_ICA_PARAMS="-pkeyopt group:secp384r1"
+ISO20022_ICA_ALG="ml-dsa-44"
+ISO20022_ICA_PARAMS=""
 ISO20022_ICA_VALIDITY_DAYS="729"
 ISO20022_ICA_TEMPLATE="iso20022-ica.profile"
-ISO20022_ICA_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - 4096 RSA - ISO20022 CA 01"
+ISO20022_ICA_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - ML-DSA-44 - ISO20022 CA 01"
 ISO20022_ICA_GENERATE="yes"
 
-ISO20022_EE_ALG="ec"
-ISO20022_EE_PARAMS="-pkeyopt group:secp384r1"
+ISO20022_EE_ALG="ml-dsa-44"
+ISO20022_EE_PARAMS=""
 ISO20022_EE_VALIDITY_DAYS="729"
 ISO20022_EE_TEMPLATE="iso20022-ee.profile"
-ISO20022_EE_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - 4096 RSA - ISO20022 EE"
+ISO20022_EE_SUBJECT_NAME="/O=X9 Financial PKI/CN=X9 Financial PKI - ML-DSA-44 - ISO20022 EE"
 ISO20022_EE_GENERATE="yes"
 
