@@ -18,9 +18,8 @@ and convenient chain files.
 To generate all configured use-cases, simply use the makefile default target:
 
 ```bash
-$ make
+$ bin/pki-gen.sh
 Loading params/rsa4096-root ...
-$
 ```
 
 ## Support
