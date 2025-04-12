@@ -69,3 +69,8 @@ for the CDN use-case, you must use the ICA that is enabled for CDN.
 
 You can then use this certificate for testing purposes only.
 
+# Notice
+
+This repository makes use of scripts and logic originally implemented in the OpenCA
+Labs testpki-generator repository on GitHub.
+

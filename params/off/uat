@@ -1,0 +1,17 @@
+OUT_DIR="dev_pki"
+FORMAT="PEM"
+
+ROOT_ALG="ec"
+ROOT_PARAMS="-pkeyopt group:secp521r1"
+ROOT_VALIDITY_DAYS="3652"
+ROOT_GENERATE="yes"
+
+ICA_ALG="ec"
+ICA_PARAMS="-pkeyopt group:secp384r1"
+ICA_VALIDITY_DAYS="1826"
+ICA_GENERATE="yes"
+
+EE_ALG="ec"
+EE_PARAMS="-pkeyopt group:prime256v1"
+EE_VALIDITY_DAYS="729"
+

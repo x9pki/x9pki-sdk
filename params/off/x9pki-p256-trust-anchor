@@ -1,0 +1,24 @@
+FORMAT="PEM"
+OUT_DIR="x9pki-rsa4096-trust-chain"
+
+# PROVIDER="-provider oqs"
+PROVIDER=
+
+ROOT_ALG="ec"
+ROOT_PARAMS="-pkeyopt group:secp521r1"
+ROOT_VALIDITY_DAYS="3652"
+ROOT_TEMPLATE="root.profile"
+ROOT_SUBJECT="/O=X9 Financial PKI/CN=X9 Financial PKI - 2048 RSA - ROOT CA 01"
+ROOT_GENERATE="yes"
+
+ICA_ALG="ec"
+ICA_PARAMS="-pkeyopt group:secp384r1"
+ICA_VALIDITY_DAYS="1826"
+ICA_SUBJECT="/O=X9 Financial PKI/CN=X9 Financial PKI - 2048 RSA - ROOT CA 01"
+ICA_TEMPLATE="cdn-ca.profile"
+ICA_GENERATE="yes"
+
+EE_ALG="ec"
+EE_PARAMS="-pkeyopt group:prime256v1"
+EE_VALIDITY_DAYS="729"
+
