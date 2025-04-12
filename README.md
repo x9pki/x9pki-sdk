@@ -8,29 +8,30 @@ production use.
 
 ## Getting Started
 
-This repository provides three different test infrastructures:
-* The EdDSA X9 ASC Test PKI
-* The ML-DSA X9 ASC Test PKI
+This repository provides the set of private keys and certificates that mimics the
+X9 ASC PKI and its supported use-cases.
 
-Each test PKI is provided together with the set of private keys and certificates
-that allows to test different scenarios and interoperability situations.
+Each test root is provided together with the set of private keys and certificates
+that allow testing of different scenarios and interoperability situations.
 
-For example, it is possible to install the traditional (EdDSA) and post-quantum
-(ML-DSA) test PKIs on different clients and test the use of different options
+For example, it is possible to install the traditional (ECDSA) and post-quantum
+(ML-DSA) test roots on different clients and test the use of different options
 for the server certificate, including the use of traditional, post-quantum, or
 even hybrid options.
 
 ## Installation
 
 The SDK is provided as a set of files that can be directly used in your software
-or protocol implementation. The SDK includes, for each type of certificate and
+or protocol implementation. 
+
+The SDK includes, for each type of certificate and
 algorithm, the following files:
 * A private key file in PEM format (PKCS#8 - not encrypted)
 * A certificate file in PEM format (unlimited validity)
 * A certificate chain file in PEM format (CA plus EE certificate)
 
 A separate trust store file is provided that includes the root CA certificates
-from the different supported test PKIs.
+from the different supported test roots in two different formats: PEM and P7B.
 
 ## Certificate Issuance
 
@@ -38,3 +39,33 @@ Besides the available keys and certificates that can be used for testing, the
 SDK provides a set of scripts that can be used to issue new certificates for
 testing purposes. The scripts are provided in the `scripts` directory and are
 described in the following sections.
+
+For the scripts to work, you need to have the following dependencies installed:
+* OpenSSL 3.5.0 or later
+* WolfSSL 5.4.0 or later (with Composite Signature support)
+
+In order to issue a new certificate, execute the following command:
+```bash
+./scripts/issue_cert.sh <ica_key_file> <ica_cert_file> <req_file> <template>
+```
+Where:
+* `<ica_key_file>`: The private key file of the ICA that will issue the new
+  certificate.
+* `<ica_cert_file>`: The certificate file of the ICA that will issue the new
+  certificate.
+* `<req_file>`: The request file that contains the public key and the
+  certificate request.
+* `<template>`: The template file to use for the configuration of the new
+  certificate (OpenSSL extensions format).
+
+The script will generate a new certificate and save it in the current directory
+with the name `new_cert.pem`. The new certificate will be signed by the selected
+ICA.
+
+Please make sure you use the correct ICA when issuing the new certificate. Specifically,
+the ICA must be enabled for the specific use-case. For example, if you are testing
+the ISO20022 use-case, you must use the ICA that is enabled for ISO20022. Similarly,
+for the CDN use-case, you must use the ICA that is enabled for CDN. 
+
+You can then use this certificate for testing purposes only.
+
