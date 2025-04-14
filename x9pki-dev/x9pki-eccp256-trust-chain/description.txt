@@ -1,0 +1,4 @@
+PKI x9pki-dev/x9pki-eccp256-trust-chain (format: PEM):
+  Root CA (ec): root.cer
+  CDN Intermediate CA (ec): cdn-ica.cer
+  ISO20022 Intermediate CA (ec): iso20022-ica.cer
