@@ -19,6 +19,9 @@ For example, it is possible to install the traditional (ECDSA) and post-quantum
 for the server certificate, including the use of traditional, post-quantum, or
 even hybrid options.
 
+If you need or want to generate a new set of Roots and Intermediate CAs, you can
+follow the documentation in [docs/PKI-GENERATION.md](docs/PKI-GENERATION.md).
+
 ## Installation
 
 The SDK is provided as a set of files that can be directly used in your software
