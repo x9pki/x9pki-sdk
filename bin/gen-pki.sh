@@ -24,29 +24,8 @@ for i in params/* ; do
   # Some Debugging Info
   echo && echo "Processing $i (x9pki-dev/$OUT_DIR)..."
 
-  # # Selects the Date Command format
-  # if [ "$(uname)" == "Darwin" ]; then
-  #   ROOT_VALIDITY_OPT="-not_after "$(date -v+${ROOT_VALIDITY_DAYS}d +%Y%m%d%H%M%S)"Z"
-  #   ICA_VALIDITY_OPT="-not_after "$(date -v+${ICA_VALIDITY_DAYS}d +%Y%m%d%H%M%S)"Z"
-  #   EE_VALIDITY_OPT="-not_after "$(date -v+${EE_VALIDITY_DAYS}d +%Y%m%d%H%M%S)"Z"
-  # else
-  #   ROOT_VALIDITY_OPT="-not_after "$(date -d "+${ROOT_VALIDITY_DAYS} days" '+%Y%m%d%H%M%S')"Z"
-  #   ICA_VALIDITY_OPT="-not_after "$(date -d "+${ICA_VALIDITY_DAYS} days" '+%Y%m%d%H%M%S')"Z"
-  #   EE_VALIDITY_OPT="-not_after "$(date -d "+${EE_VALIDITY_DAYS} days" '+%Y%m%d%H%M%S')"Z"
-  # fi
-
-  # # Sets the days options depending on the version of openssl
-  # ret=$($OSSL_CMD version | grep "3.0" )
-  # if [ $? == 0 ] ; then
-  #   ROOT_VALIDITY_OPT="-days ${ROOT_VALIDITY_DAYS}"
-  #   ICA_VALIDITY_OPT="-days ${ICA_VALIDITY_DAYS}"
-  # fi
-
   # Creates the PKI directory, if it does not exsists
   mkdir -p "x9pki-dev/$OUT_DIR"
-
-  # Copies the profiles and params into the pki directory
-  # cp -r profiles params $OUT_DIR
 
   # ==================
   # Root CA Generation 
@@ -289,18 +268,18 @@ for i in params/* ; do
   fi
 
             # ================
-            # General Use-Case
+            # Generic Use-Case
             # ================
 
-  if [ "x$CDN_ICA_GENERATE" = "xyes" -o "x$CDN_ICA_GENERATE" = "xreq" ] ; then
+  if [ "x$GENERIC_ICA_GENERATE" = "xyes" -o "x$GENERIC_ICA_GENERATE" = "xreq" ] ; then
 
-    if [ -f "x9pki-dev/$OUT_DIR/gen-ica.key" ] ; then
+    if [ -f "x9pki-dev/$OUT_DIR/generic-ica.key" ] ; then
       echo "* GEN ICA key already exists, skipping."
     else
-      echo && echo "Generating General ICA:"
-      echo "  - Generating General ICA key..."
-      res=$($OSSL_CMD genpkey -algorithm $CDN_ICA_ALG $CDN_ICA_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/gen-ica.key" \
+      echo && echo "Generating Generic ICA:"
+      echo "  - Generating Generic ICA key..."
+      res=$($OSSL_CMD genpkey -algorithm $GENERIC_ICA_ALG $GENERIC_ICA_PARAMS \
+              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/generic-ica.key" \
               $PROVIDER 2>&1)
       if [ $? -gt 0 ] ; then
         echo && echo "ERROR: cannot generate the ICA key: $res" && echo
@@ -308,9 +287,9 @@ for i in params/* ; do
       fi
 
       # Generating the ICA request
-      echo "  - Generating General ICA CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/gen-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/gen-ica.req" -subj "$CDN_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
+      echo "  - Generating Generic ICA CSR..."
+      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/generic-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
+              -out "x9pki-dev/$OUT_DIR/generic-ica.req" -subj "$GENERIC_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
       if [ $? -gt 0 ] ; then
         echo
         echo "ERROR: Cannot create the Intermediate CA's CSR."
@@ -320,28 +299,28 @@ for i in params/* ; do
         exit 1
       fi
 
-      if ! [ "x$GEN_ICA_DAYS" == "x" ] ; then
-        GEN_ICA_VALIDITY_OPT="-days ${GEN_ICA_VALIDITY_DAYS}"
+      if ! [ "x$GENERIC_ICA_DAYS" == "x" ] ; then
+        GEN_ICA_VALIDITY_OPT="-days ${GENERIC_ICA_VALIDITY_DAYS}"
       else
-        if ! [ "x$GEN_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
-          GEN_ICA_VALIDITY_OPT="-not_before $GEN_ICA_VALIDITY_NOTBEFORE"
+        if ! [ "x$GENERIC_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
+          GEN_ICA_VALIDITY_OPT="-not_before $GENERIC_ICA_VALIDITY_NOTBEFORE"
         else
           GEN_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
         fi
-        if ! [ "x$GEN_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
-          GEN_ICA_VALIDITY_OPT="-not_after $GEN_ICA_VALIDITY_NOTAFTER"
+        if ! [ "x$GENERIC_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
+          GEN_ICA_VALIDITY_OPT="-not_after $GENERIC_ICA_VALIDITY_NOTAFTER"
         else
           GEN_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
         fi
       fi
 
-      if [ "x$GEN_ICA_GENERATE" = "xyes" ] ; then
+      if [ "x$GENERIC_ICA_GENERATE" = "xyes" ] ; then
         echo "  - Signing General ICA Certificate... "
         res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
                 -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
-                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/gen-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/gen-ica.cer" -extfile "profiles/gen-ica.profile" \
-                $GEN_ICA_VALIDITY_OPT $PROVIDER 2>&1)
+                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/generic-ica.req" \
+                -out "x9pki-dev/$OUT_DIR/generic-ica.cer" -extfile "profiles/ica.profile" \
+                $GENERIC_ICA_VALIDITY_OPT $PROVIDER 2>&1)
         if [ $? -gt 0 ] ; then
           echo
           echo "ERROR: Cannot create the General Intermediate CA's certificate."
@@ -352,7 +331,7 @@ for i in params/* ; do
         fi
 
         # Cleanup
-        rm -f "x9pki-dev/$OUT_DIR/gen-ica.req"
+        rm -f "x9pki-dev/$OUT_DIR/generic-ica.req"
 
       else
         echo "  - General ICA Request Signing skipped."
@@ -360,7 +339,7 @@ for i in params/* ; do
     fi
 
   else
-    echo "General ICA generation skipped."
+    echo "Generic ICA generation skipped."
   fi
 
 
@@ -370,7 +349,7 @@ for i in params/* ; do
       && echo "  Root CA ($ROOT_ALG): root.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo "  CDN Intermediate CA ($CDN_ICA_ALG): cdn-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo "  ISO20022 Intermediate CA ($ISO20022_ICA_ALG): iso20022-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
-      && echo "  General Intermediate CA ($GEN_ICA_ALG): gen-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
+      && echo "  Generic Intermediate CA ($GENERIC_ICA_ALG): generic-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo )
 
 done

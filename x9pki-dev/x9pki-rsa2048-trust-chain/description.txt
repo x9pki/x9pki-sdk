@@ -2,3 +2,4 @@ PKI x9pki-dev/x9pki-rsa2048-trust-chain (format: PEM):
   Root CA (RSA): root.cer
   CDN Intermediate CA (rsa): cdn-ica.cer
   ISO20022 Intermediate CA (rsa): iso20022-ica.cer
+  Generic Intermediate CA (rsa): generic-ica.cer

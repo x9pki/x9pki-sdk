@@ -2,3 +2,4 @@ PKI x9pki-dev/x9pki-mldsa44-trust-chain (format: PEM):
   Root CA (ml-dsa-44): root.cer
   CDN Intermediate CA (ml-dsa-44): cdn-ica.cer
   ISO20022 Intermediate CA (ml-dsa-44): iso20022-ica.cer
+  Generic Intermediate CA (ml-dsa-44): generic-ica.cer
