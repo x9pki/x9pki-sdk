@@ -1,6 +1,6 @@
-# This is a sample profile CDN ICA certificates.
+# This is a sample profile qrCode ICA certificates.
 #
-# Usecase: CDN ICA
+# Usecase: qrCode ICA
 
 # Infrastructure extensions (disabled in the default SDK) and you can enable
 # them in your installation, if supported.

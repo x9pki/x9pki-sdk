@@ -6,16 +6,59 @@ SUDO_CMD=$(type -path sudo)
 NOW=$(date +%Y%m%d%H%M%S)
 
 # Default Parameters
-PARAMS="params/dev"
-PROFILE="server"
-TARGET_SERVICE="worker"
+PARAMS=""
+USECASE=""
+ALTNAME=""
+COMMON_NAME="X9 DEV Certificate"
 SUBJECT=""
 FORMAT="PEM"
-NO_SIGN=
 EE_VALIDITY_DAYS=90
 DEBUG=0
-OWNER="root"
+OWNER=$(whoami)
 PERMISSIONS="600"
+EXPORT_DIR=""
+
+# Trust Chain Usage help function
+function available_chains() {
+  echo "Available Trust Chains:"
+  echo "-----------------------"
+  echo "  eccp256 ....: Traditional ECC P-256"
+  echo "  rsa2048 ....: Traditional RSA 2048"
+  echo "  rsa4096 ....: Traditional RSA 4096"
+  echo "  mldsa44 ....: Post-Quantum ML-DSA 44"
+  echo "  mldsa87 ....: Post-Quantum ML-DSA 87"
+  echo
+  echo "  For more information, please use the -l|--list option."
+}
+
+function available_formats() {
+  echo "Available Formats:"
+  echo "------------------"
+  echo "  PEM"
+  echo "  DER"
+  echo
+}
+
+function available_usecases() {
+  echo "Available Usecases:"
+  echo "--------------------"
+  echo ""
+  echo " * Generic:"
+  echo "   - TLS Server (generic-server)"
+  echo "   - TLS Client (generic-client)"
+  echo "   - Code Validation (generic-cvc)"
+  echo
+  echo " * Content Distribution Networks (CDN):"
+  echo "   - TLS Server (cdn-server)"
+  echo "   - TLS Client (cdn-client)"
+  echo
+  echo " * ISO20022 Payment Settlement:"
+  echo "   - ISO20022 Payment Entity (iso20022-signer)"
+  echo
+  echo " * Payment QRCode:"
+  echo "   - Merchant (qrcode-merchant)"
+  echo "   - Cardholder (qrcode-cardholder)"
+}
 
 # Processes the command line options and allow the user
 # to specify the PKI to use and the profile to use. Process
@@ -27,32 +70,23 @@ while [ "$1" != "" ] ; do
       echo "Usage: $0 [ -config params/dev ] [-profile <server | client | ...>] [-subject </O=...>] [-target < redis | issuer | etc. > ]"
       echo
       echo "Defaults as follows:"
-      echo "-c|config <file> .....: PKI parameters' file (def. 'params/dev')"
-      echo "-p|profile <name> ....: Certificate profile (i.e., server, client, cvc, or ocsp)"
-      echo "-s|subject </O=...> ..: Subject Name (def. '/OU=workers/CN=server certificate')"
-      echo "-t|target <service> ..: Certificate target service (def. redis, worker, etc.)"
-      echo "-n|nosign ............: Do not sign the certificate (i.e., only generate key and csr)"
       echo "-l|list ..............: List available PKIs, profiles, and formats"
-      echo "-d|debug .............: Show debugging information"
+      echo "-t|trust-chain <name> : Trust chain name (use -l for the list of supported ones)"
+      echo "-u|usecase <name> ....: Certificate use case (i.e., cdn-client, qrcode-signer, etc.)"
+      echo "-a|altname <name> ....: Alternative names (i.e., DNS:*.example.com, IP:1.2.3.4, Email:...)"
+      echo "-c|commonName <val> ..: Subject CN value (e.g., 'SERVER-ID2034912-AQ')"
+      echo "-f|format <PEM|DER> ..: Output format (def. 'PEM')"
+      echo "-o|owner <user> ......: Owner of the private key (def. 'root')"
       echo "-v|version ...........: Show version information"
+      echo "-d|debug .............: Show debugging information"
       echo
 
       exit 1
       ;;
     -l|--list)
-      echo "Available PKIs:"
-      echo "---------------"
-      ls -1 PKIs
-      echo
-      echo "Available Profiles:"
-      echo "-------------------"
-      ls -1 profiles
-      echo
-      echo "Available Formats:"
-      echo "------------------"
-      echo "  PEM"
-      echo "  DER"
-      echo
+      echo && available_chains
+      echo && available_usecases
+      echo && available_formats
       exit 0
       ;;
     -v|--version)
@@ -64,32 +98,48 @@ while [ "$1" != "" ] ; do
       DEBUG=1
       shift
     ;;
-    -q|--quiet)
-      exec 1>/dev/null
-      shift
-    ;;
-    -n|--nosign)
-      NO_SIGN=1
-      exec 1>/dev/null
-      shift
-    ;;
-    -c|--config)
-      PARAMS=$2
+    -t|--trust-chain)
+      if [ "x$2" = "x" ] ; then
+        echo
+        echo "    ERROR: Trust chain name is required."
+        echo
+        echo "For the supported chains, please use the -l|--list option."
+        echo
+        exit 1
+      fi
+      PARAMS="params/x9pki-$2-trust-anchor"
+      if ! [ -f "$PARAMS" ] ; then
+        echo
+        echo "  ERROR: Trust chain file does not exist, aborting ($PARAMS)."
+        echo
+        exit 1
+      fi
+      ;;
+    -u|--usecase)
+      USECASE=$2
+      if [ "x$2" = "x" ] ; then
+        echo
+        echo "    ERROR: Usecase is required."
+        echo
+        echo "For the supported usecases, please use the -l|--list option."
+        echo
+        exit 1
+      fi
       shift 2
     ;;
-    -p|--profile)
-      PROFILE=$2
+    -a|--altname)
+      ALTNAME=$2
       shift 2
     ;;
-    -s| --subject)
-      SUBJECT=$2
+    -c|--commonName)
+      if [ "$2" != "" ] ; then
+        COMMON_NAME="$2"
+      else
+        COMMON_NAME="X9 DEV Certificate"
+      fi
       shift 2
     ;;
-    -t| --target)
-      TARGET_SERVICE=$2
-      shift 2
-    ;;
-    -o| --owner)
+    -o|--owner)
       OWNER=$2
       shift 2
     ;;
@@ -109,6 +159,50 @@ while [ "$1" != "" ] ; do
     ;;
   esac
 done
+
+# Checks the use-case is one of the supported ones
+case $USECASE in
+  generic-server)
+    PROFILE=$USECASE
+    ROOT_CA="generic-ica"
+    ISSUING_ICA=""
+    SUBJECT="/O=X9 Financial PKI/OU=Generic Issuing CA, CN=$COMMON_NAME"
+    if [ "x$ALTNAME" = "x" ] ; then
+      echo
+      echo "   ERROR: Alternative names are required for server certificates."
+      echo
+      exit 1
+    fi
+  ;;
+  generic-client)
+  ;;
+  code-signer)
+  ;;
+  cdn-server|cdn-client)
+  ;;
+  iso20022-signer)
+  ;;
+  qrcode-signer)
+    PROFILE=$USECASE
+    ;;
+  *)
+    echo
+    echo "Unknown use-case: $USECASE"
+    echo
+    echo "Please specify one of the following use-cases:"
+    echo "- generic-server"
+    echo "- generic-client"
+    echo "- code-signer"
+    echo "- cdn-server"
+    echo "- cdn-client"
+    echo "- iso20022-signer"
+    echo "- qrcode-signer"
+    echo
+    echo "For more information, please use the -l|--list option."
+    echo
+    exit 1
+    ;;
+esac
 
 # Some Debugging Info
 echo "Loading $PARAMS ..."

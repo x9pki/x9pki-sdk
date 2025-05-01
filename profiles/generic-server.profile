@@ -1,6 +1,6 @@
-# This is a sample profile CDN ICA certificates.
+# This is a sample profile for CDN TLS server certificates.
 #
-# Usecase: CDN ICA
+# Usecase: CDN TLS server
 
 # Infrastructure extensions (disabled in the default SDK) and you can enable
 # them in your installation, if supported.
@@ -14,9 +14,6 @@
 # Certificate Policies
 certificatePolicies=1.3.133.16.840.79.0.1
 
-# Basic Constraints (CA)
-basicConstraints=critical,CA:true
-
 # Authority Key Identifier (AKID)
 authorityKeyIdentifier=keyid:always,issuer
 
@@ -24,4 +21,10 @@ authorityKeyIdentifier=keyid:always,issuer
 subjectKeyIdentifier=hash
 
 # Key Usage
-keyUsage=cRLSign,keyCertSign
+keyUsage=critical, digitalSignature
+
+# Extended Key Usage
+extendedKeyUsage=serverAuth, 1.3.133.16.840.79.0.3.34
+
+# Subject Alternative Name
+subjectAltName=DNS:$DNS_NAME

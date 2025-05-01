@@ -1,6 +1,12 @@
-# Root CA Profile
+# This is a sample root CA certificates.
+#
+# Usecase: Root CA
 
-# subjectKeyIdentifier=hash
+# Basic Constraints (CA)
+basicConstraints=critical,CA:true
 
-basicConstraints = critical,CA:true
-keyUsage = cRLSign, keyCertSign
+# Subject Key Identifier (SKID)
+subjectKeyIdentifier=hash
+
+# Key Usage
+keyUsage=cRLSign,keyCertSign

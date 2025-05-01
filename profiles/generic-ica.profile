@@ -1,6 +1,8 @@
-# This is a sample profile CDN ICA certificates.
+# Issuing CA Profile
+
+# This is a sample profile generic ICA certificates.
 #
-# Usecase: CDN ICA
+# Usecase: generic ICA
 
 # Infrastructure extensions (disabled in the default SDK) and you can enable
 # them in your installation, if supported.

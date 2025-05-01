@@ -93,17 +93,6 @@ for i in params/* ; do
       fi
     fi
 
-    # # Adding the Root CA certificate to the trust store
-    # cat x9pki-dev/$OUT_DIR/root.cer >> "x9pki-trust-store.pem"
-    # if [ $? -gt 0 ] ; then
-    #   echo
-    #   echo "ERROR: Cannot add the Root CA certificate to the trust store."
-    #   echo
-    #   exit 1
-    # fi
-
-    # echo "Root CA certificate added to trust store."
-
     # Cleanup
     [ -f "x9pki-dev/$OUT_DIR/root.req" ] && rm -f "x9pki-dev/$OUT_DIR/root.req"
 
@@ -267,6 +256,82 @@ for i in params/* ; do
     echo "ISO20022 ICA generation skipped."
   fi
 
+
+            # ================
+            # qrCodes Use-Case
+            # ================
+
+  if [ "x$QRCODES_ICA_GENERATE" = "xyes" -o "x$QRCODES_ICA_GENERATE" = "xreq" ] ; then
+
+    if [ -f "x9pki-dev/$OUT_DIR/qrcodes-ica.key" ] ; then
+      echo "* qrCodes ICA key already exists, skipping."
+    else
+      echo && echo "Generating qrCodes ICA:"
+      echo "  - Generating qrCodes ICA key..."
+      res=$($OSSL_CMD genpkey -algorithm $QRCODES_ICA_ALG $QRCODES_ICA_PARAMS \
+              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/qrcodes-ica.key" \
+              $PROVIDER 2>&1)
+      if [ $? -gt 0 ] ; then
+        echo && echo "ERROR: cannot generate the ICA key: $res" && echo
+        exit 1;
+      fi
+
+      # Generating the ICA request
+      echo "  - Generating qrCodes ICA CSR..."
+      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/qrcodes-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
+              -out "x9pki-dev/$OUT_DIR/qrcodes-ica.req" -subj "$QRCODES_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
+      if [ $? -gt 0 ] ; then
+        echo
+        echo "ERROR: Cannot create the Intermediate CA's CSR."
+        echo
+        echo $res
+        echo
+        exit 1
+      fi
+
+      if ! [ "x$QRCODES_ICA_DAYS" == "x" ] ; then
+        QRCODES_ICA_VALIDITY_OPT="-days ${QRCODES_ICA_VALIDITY_DAYS}"
+      else
+        if ! [ "x$QRCODES_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
+          QRCODES_ICA_VALIDITY_OPT="-not_before $QRCODES_ICA_VALIDITY_NOTBEFORE"
+        else
+          QRCODES_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
+        fi
+        if ! [ "x$QRCODES_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
+          QRCODES_ICA_VALIDITY_OPT="-not_after $QRCODES_ICA_VALIDITY_NOTAFTER"
+        else
+          QRCODES_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
+        fi
+      fi
+
+      if [ "x$QRCODES_ICA_GENERATE" = "xyes" ] ; then
+        echo "  - Signing qrCodes ICA Certificate... "
+        res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
+                -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
+                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/qrcodes-ica.req" \
+                -out "x9pki-dev/$OUT_DIR/qrcodes-ica.cer" -extfile "profiles/qrcodes-ica.profile" \
+                $QRCODES_ICA_VALIDITY_OPT $PROVIDER 2>&1)
+        if [ $? -gt 0 ] ; then
+          echo
+          echo "ERROR: Cannot create the qrCodes Intermediate CA's certificate."
+          echo
+          echo $res
+          echo
+          exit 1
+        fi
+
+        # Cleanup
+        rm -f "x9pki-dev/$OUT_DIR/qrcodes-ica.req"
+
+      else
+        echo "  - qrCodes ICA Request Signing skipped."
+      fi
+    fi
+
+  else
+    echo "* qrCodes ICA generation skipped."
+  fi
+
             # ================
             # Generic Use-Case
             # ================
@@ -319,7 +384,7 @@ for i in params/* ; do
         res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
                 -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
                 -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/generic-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/generic-ica.cer" -extfile "profiles/ica.profile" \
+                -out "x9pki-dev/$OUT_DIR/generic-ica.cer" -extfile "profiles/generic-ica.profile" \
                 $GENERIC_ICA_VALIDITY_OPT $PROVIDER 2>&1)
         if [ $? -gt 0 ] ; then
           echo
