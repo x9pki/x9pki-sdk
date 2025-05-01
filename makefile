@@ -37,7 +37,7 @@ pki:
 
 list:
 	@echo "Listing supported use-cases..."
-	@bin/list-use-cases.sh
+	@bin/gen-cert.sh --list
 
 cert:
 	@echo "Generating certificates for use-case: $(@)"
