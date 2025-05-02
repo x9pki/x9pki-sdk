@@ -34,7 +34,10 @@ all: banner pki list
 	@echo "All targets completed."
 	@echo ""
 
-pki:
+pki: genpki stores
+	@echo "All Done."
+
+genpki:
 	@echo "Building all PKIs..."
 	@bin/gen-pki.sh
 
