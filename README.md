@@ -72,6 +72,29 @@ for the CDN use-case, you must use the ICA that is enabled for CDN.
 
 You can then use this certificate for testing purposes only.
 
+## The ASC X9 PKI
+
+The ASC X9 PKI is a public key infrastructure (PKI) that provides a set of
+certificates and keys for different use-cases relevant for the financial industry.
+
+The PKI is multi-rooted. This means that there are multiple root CAs that can
+address different cryptographic needs (e.g., traditional, post-quantum, and hybrid).
+Under each individual trust chain (or trust root), there are multiple intermediate
+CAs that can be used to issue end-entity certificates for different use-cases.
+
+You can find more information about the X9 PKI in the following documents:
+* [X9 ASC PKI Overview](https://www.x9pki.org/wp-content/uploads/2023/01/X9-ASC-PKI-Overview.pdf)
+* [X9 ASC PKI Certificate Policy](https://www.x9.org/wp-content/uploads/2023/01/X9-ASC-PKI-Certificate-Policy.pdf)
+
+## Supported Use-Cases
+
+The supported use-cases are:
+
+- [Generic Usecase for TLS and Standard Protocols](docs/GENERIC.md)
+- [Content Distribution Network and Virtual Front Door (CDN or VFD)](docs/CDN.md)
+- [ISO 20022 Payment Messages](docs/ISO20022.md)
+- [Secure Payment QR Codes](docs/QRCODES.md)
+
 # Notice
 
 This repository makes use of scripts and logic originally implemented in the OpenCA

@@ -1,5 +1,7 @@
 # Makefile for X9 PKI SDK
-#
+# (c) 2025 by Massimiliano Pala and ASC X9
+# All rights reserved.
+
 # This Makefile is used to generate new test X9 PKI and to generate
 # certificates for the supported use-cases. Please refer to the
 # documentation for more information.
