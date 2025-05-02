@@ -3,7 +3,7 @@ May 1, 2025 Massimiliano Pala <madwolf@openca.org>
 - Updated pki target to also build the trust stores.
 - Added makefile target for rebuilding the trust stores.
 - Added initial documentation for use-cases.
-- Update LICENSE to address Steve's comments related to making sure X9 is not liable - using MIT license. See https://app.soos.io/research/licenses/MITNFA for more information.
+- Update LICENSE to MIT license. See https://app.soos.io/research/licenses/MITNFA for more information.
 - Generated new ML-DSA-87 trust chain.
 - Added new QRCODES usecase ICA and Config Options. Updated several certificate profiles.
 
