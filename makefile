@@ -19,6 +19,7 @@ help:
 	@echo "  pki              Build all PKIs"
 	@echo "  list             List supported use-cases"
 	@echo "  cert <use-case>  Generate certificates for the specified use-case"
+	@echo "  stores           Generate trust stores for the ASC X9 PKI"
 	@echo "  clean            Clean up generated files"
 	@echo ""
 	@echo "Use 'make <target>' to execute the desired target."
@@ -44,6 +45,11 @@ list:
 cert:
 	@echo "Generating certificates for use-case: $(@)"
 	@bin/gen-cert.sh $(@)
+
+stores:
+	@echo "Generating trust stores for the ASC X9 PKI..."
+	@bin/build-stores.sh && echo "Trust stores generated successfully."
+	@echo ""
 
 clean:
 	@echo "Cleaning up generated files..."
