@@ -18,19 +18,15 @@ help:
 	@echo "Targets:"
 	@echo "  pki              Build all PKIs"
 	@echo "  list             List supported use-cases"
-	@echo "  cert <use-case>  Generate certificates for the specified use-case"
+	@echo "  help             Show this help message"
+	@echo "  cert <options>   Generate certificates (use cert-help for options)"
+	@echo "  cert-help        Show help for certificate generation"
 	@echo "  stores           Generate trust stores for the ASC X9 PKI"
 	@echo "  clean            Clean up generated files"
 	@echo ""
 	@echo "Use 'make <target>' to execute the desired target."
 
-banner:
-	@echo "X9 PKI SDK - Test Environment"
-	@echo "(c) 2025 by ASC X9 and Contributors"
-	@echo " All rights reserved."
-	@echo ""
-
-all: banner pki list
+all: pki list
 	@echo "All targets completed."
 	@echo ""
 
@@ -42,12 +38,14 @@ genpki:
 	@bin/gen-pki.sh
 
 list:
-	@echo "Listing supported use-cases..."
-	@bin/gen-cert.sh --list
+	@bin/gen-cert.sh list
 
 cert:
-	@echo "Generating certificates for use-case: $(@)"
-	@bin/gen-cert.sh $(@)
+	@echo "Generating certificates for use-case: $@"
+	@bin/gen-cert.sh issue $@
+
+cert-help:
+	@bin/gen-cert.sh help
 
 stores:
 	@echo "Generating trust stores for the ASC X9 PKI..."
