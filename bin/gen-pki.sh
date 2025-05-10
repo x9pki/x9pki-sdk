@@ -4,11 +4,6 @@
 OSSL_CMD=$(type -path openssl)
 CURR_DIR=$PWD
 
-# Sets the default format
-if [ "x$FORMAT" = "" ] ; then
-	FORMAT="PEM"
-fi
-
 # Let's reset the trust store
 echo -n > x9pki-trust-store.pem
 
@@ -27,6 +22,11 @@ for i in params/* ; do
   # Creates the PKI directory, if it does not exsists
   mkdir -p "x9pki-dev/$OUT_DIR"
 
+  # Sets the default format
+  if [ "x$FORMAT" = "" ] ; then
+    FORMAT="PEM"
+  fi
+  
   # ==================
   # Root CA Generation 
   # ==================

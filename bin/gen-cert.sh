@@ -5,18 +5,33 @@ OSSL_CMD=$(type -path openssl)
 SUDO_CMD=$(type -path sudo)
 NOW=$(date +%Y%m%d%H%M%S)
 
+# Prefix for chains
+PREFIX_DIR="x9pki-dev"
+VERSION="0.0.1"
+
 # Default Parameters
 PARAMS=""
 USECASE=""
+EXPORT_DIR="newcerts"
+TRUST_CHAIN="mldsa44"
 ALTNAME=""
-COMMON_NAME="X9 DEV Certificate"
+COMMON_NAME=""
 SUBJECT=""
 FORMAT="PEM"
 EE_VALIDITY_DAYS=90
+EE_ALG=
+EE_PARAMS=
+EXTFILE=
 DEBUG=0
-OWNER=$(whoami)
-PERMISSIONS="600"
-EXPORT_DIR=""
+QUIET="no"
+
+function banner() {
+  echo
+  echo "X9 Financial PKI - SDK for DEV (v$VERSION)"
+  echo "(c) 2025 ASC X9 Financial PKI and Contributors"
+  echo "Licensed under the MIT License (see LICENSE file)"
+  echo
+}
 
 # Trust Chain Usage help function
 function available_chains() {
@@ -55,55 +70,116 @@ function available_usecases() {
   echo " * ISO20022 Payment Settlement:"
   echo "   - ISO20022 Payment Entity (iso20022-signer)"
   echo
-  echo " * Payment QRCode:"
-  echo "   - Merchant (qrcode-merchant)"
-  echo "   - Cardholder (qrcode-cardholder)"
+  echo " * Payment QRCodes:"
+  echo "   - Merchant (qrcodes-merchant)"
+  echo "   - Cardholder (qrcodes-cardholder)"
+  echo
 }
+
+function subject_cn_fix() {
+
+  if [ "x$SUBJECT" = "x" ] ; then
+    SUBJECT="/O=X9 Financial PKI/CN=localhost"
+  fi
+
+  if ! [ "x$COMMON_NAME" = "x" ] ; then
+    res=$( echo "$SUBJECT" | sed -e "s|/CN=[^/]*|/CN=$COMMON_NAME|" )
+    if [ $? -gt 0 ] ; then
+      echo && echo "    ERROR: issue with replacing the CN value" && echo
+      exit 1
+    fi
+    echo "NEW SUBJECT: $res"
+    SUBJECT=$res
+  fi
+}
+
+# Process the command (first argument)
+case "$1" in
+  help)
+    if [ "$QUIET" = "no" ] ; then
+      banner
+    fi
+
+    echo
+    echo "Usage:"
+    echo
+    echo "   $0 list"
+    echo "   $0 issue [ options ]"
+    echo "   $0 help"
+    echo
+    echo "Where Cmd is:"
+    echo "list ................: List available trustchains, usecases, and formats."
+    echo "issue [ options ]....: Issue a certificate bundle."
+    echo "help ................: Prints this help message."
+    echo 
+    echo "Where [ options ] are:"
+    echo "-f|--format <PEM|DER> ..: Output format (def. 'PEM')"
+    echo "-o|--outdir <path> .....: Output directory (def. './newcerts/')"
+    echo "-u|--usecase <name> ....: Certificate use case (i.e., cdn-client, qrcode-signer, etc.)"
+    echo "-a|--altname <name> ....: Alternative names (i.e., 'DNS:*.example.com', 'IP:1.2.3.4', 'Email: ', etc.)"
+    echo "-t|--trust <name> ......: Trust chain name. Use null value for the available list."
+    echo "-c|--cname <val> .......: Subject CN value (e.g., 'SERVER-ID2034912-AQ')"
+    echo "-q|--quiet .............: Keep the output quiet (no banner, no extra info)"
+    echo "-d|--debug .............: Show debugging information"
+    echo
+    echo "Examples:"
+    echo
+    echo "   $0 list"
+    echo "   $0 issue -t mldsa44 -u cdn-server -a \"DNS:myserver.x9pki.org\""
+    echo "   $0 issue -t eccp256 -u qrcodes-merchant -c \"Merchant XYZ Name\""
+    echo "   $0 issue -t rsa4096 -u generic-cvc"
+    echo "   $0 help"
+    echo
+
+    exit 1
+  ;;
+  
+  list)
+    if [ "$QUIET" = "no" ] ; then
+      banner
+    fi
+
+    available_chains
+    echo && available_usecases
+    echo && available_formats
+    exit 0
+  ;;
+  
+  version)
+    echo "Version: 0.1"
+    exit 0
+  ;;
+  
+  issue)
+  ;;
+
+  *)
+    echo
+    echo "    ERROR: command not recognized, supported are [list|issue]."
+    echo
+    exit 1
+    ;;
+esac
+
+# Shifts the arg
+shift 1
 
 # Processes the command line options and allow the user
 # to specify the PKI to use and the profile to use. Process
 # the command line one by one
 while [ "$1" != "" ] ; do
   case $1 in
-    -h|--help)
-      echo
-      echo "Usage: $0 [ -config params/dev ] [-profile <server | client | ...>] [-subject </O=...>] [-target < redis | issuer | etc. > ]"
-      echo
-      echo "Defaults as follows:"
-      echo "-l|list ..............: List available PKIs, profiles, and formats"
-      echo "-t|trust-chain <name> : Trust chain name (use -l for the list of supported ones)"
-      echo "-u|usecase <name> ....: Certificate use case (i.e., cdn-client, qrcode-signer, etc.)"
-      echo "-a|altname <name> ....: Alternative names (i.e., DNS:*.example.com, IP:1.2.3.4, Email:...)"
-      echo "-c|commonName <val> ..: Subject CN value (e.g., 'SERVER-ID2034912-AQ')"
-      echo "-f|format <PEM|DER> ..: Output format (def. 'PEM')"
-      echo "-o|owner <user> ......: Owner of the private key (def. 'root')"
-      echo "-v|version ...........: Show version information"
-      echo "-d|debug .............: Show debugging information"
-      echo
-
-      exit 1
-      ;;
-    -l|--list)
-      echo && available_chains
-      echo && available_usecases
-      echo && available_formats
-      exit 0
-      ;;
-    -v|--version)
-      echo "Version: 0.1"
-      exit 0
-      ;;
     -d|--debug)
       set -x
       DEBUG=1
       shift
     ;;
-    -t|--trust-chain)
+    -t|--trust)
       if [ "x$2" = "x" ] ; then
         echo
         echo "    ERROR: Trust chain name is required."
         echo
-        echo "For the supported chains, please use the -l|--list option."
+        available_chains
         echo
         exit 1
       fi
@@ -114,6 +190,7 @@ while [ "$1" != "" ] ; do
         echo
         exit 1
       fi
+      shift 2
       ;;
     -u|--usecase)
       USECASE=$2
@@ -128,27 +205,22 @@ while [ "$1" != "" ] ; do
       shift 2
     ;;
     -a|--altname)
-      ALTNAME=$2
-      shift 2
-    ;;
-    -c|--commonName)
-      if [ "$2" != "" ] ; then
-        COMMON_NAME="$2"
+      if [ "x$ALTNAME" = "x" ] ; then
+        ALTNAME=$2
       else
-        COMMON_NAME="X9 DEV Certificate"
+        ALTNAME="$ALTNAME,$2"
       fi
       shift 2
     ;;
-    -o|--owner)
-      OWNER=$2
-      shift 2
-    ;;
-    -r| --permissions)
-      PERMISSIONS=$2
-      shift 2
-    ;;
-    -x| --xport)
-      EXPORT_DIR=$2
+    -c|--cname)
+      if [ "$2" != "" ] ; then
+        COMMON_NAME="$2"
+      else
+        echo
+        echo "    ERROR: missing common name's value ('-c|--cname')."
+        echo
+        exit 1
+      fi
       shift 2
     ;;
     *)
@@ -160,70 +232,159 @@ while [ "$1" != "" ] ; do
   esac
 done
 
+# Loads the parameters
+. $PARAMS
+
+# Sets initial values
+EXTFILE="profiles/$USECASE.profile"
+PROFILE=$USECASE
+
+# Sets CN as AltName
+if [ "x$ALTNAME" = "x" ] ; then
+  if ! [ "x$COMMON_NAME" = "x" ] ; then
+    ALTNAME="subjectAltName=DNS:$COMMON_NAME"
+  fi
+fi
+
 # Checks the use-case is one of the supported ones
 case $USECASE in
   generic-server)
-    PROFILE=$USECASE
-    ROOT_CA="generic-ica"
-    ISSUING_ICA=""
-    SUBJECT="/O=X9 Financial PKI/OU=Generic Issuing CA, CN=$COMMON_NAME"
+
+    # Selects the CA's key/cert
+    ISSUING_CA="generic-ica"
+    SUBJECT=$GENERIC_EE_SERVER_SUBJECT_NAME
+    subject_cn_fix
+    
+    # Checks we have a value for the altname
     if [ "x$ALTNAME" = "x" ] ; then
-      echo
-      echo "   ERROR: Alternative names are required for server certificates."
-      echo
-      exit 1
+        echo
+        echo "   ERROR: Alternative names are required for server certificates."
+        echo
+        exit 1
     fi
+
+    # Copy the profile to a tmp one with the altname replaced
+    EXTFILE="profiles/$USECASE.profile.tmp"
+    res=$( cat "profiles/$USECASE.profile" | sed "s|@SUBJECT_ALT_NAME@|subjectAltName=$ALTNAME|g" > "$EXTFILE" )
+
+    # Sets the variables names (translates specific-usecase
+    # variables into general ones)
+    EE_ALG=$GENERIC_EE_SERVER_ALG
+    EE_PARAMS=$GENERIC_EE_SERVER_PARAMS
+    EE_VALIDITY_DAYS=$GENERIC_EE_SERVER_VALIDITY_DAYS
   ;;
   generic-client)
+    ISSUING_CA="generic-ica"
+    SUBJECT=$GENERIC_EE_CLIENT_SUBJECT_NAME
+    subject_cn_fix
+
+    # Sets the variables names (translates specific-usecase
+    # variables into general ones)
+    EE_ALG=$GENERIC_EE_CLIENT_ALG
+    EE_PARAMS=$GENERIC_EE_CLIENT_PARAMS
+    EE_VALIDITY_DAYS=$GENERIC_EE_CLIENT_VALIDITY_DAYS
   ;;
-  code-signer)
+  generic-cvc)
+    ISSUING_CA="generic-ica"
+    SUBJECT=$GENERIC_EE_CVC_SUBJECT_NAME
+    subject_cn_fix
+
+    # Sets the variables names (translates specific-usecase
+    # variables into general ones)
+    EE_ALG=$GENERIC_EE_CVC_ALG
+    EE_PARAMS=$GENERIC_EE_CVC_PARAMS
+    EE_VALIDITY_DAYS=$GENERIC_EE_CVC_VALIDITY_DAYS
   ;;
-  cdn-server|cdn-client)
+  cdn-server)
+    # Selects the CA's key/cert
+    ISSUING_CA="cdn-ica"
+    SUBJECT=$CDN_EE_SERVER_SUBJECT_NAME
+    subject_cn_fix
+
+    # Checks we have a value for the altname
+    if [ "x$ALTNAME" = "x" ] ; then
+        echo
+        echo "   ERROR: Alternative names are required for server certificates."
+        echo
+        exit 1
+    fi
+
+    # Copy the profile to a tmp one with the altname replaced
+    EXTFILE="profiles/$USECASE.profile.tmp"
+    res=$( cat "profiles/$USECASE.profile" | sed "s|@SUBJECT_ALT_NAME@|subjectAltName=$ALTNAME|g" > "$EXTFILE" )
+
+    # Sets the variables names (translates specific-usecase
+    # variables into general ones)
+    EE_ALG=$CDN_EE_SERVER_ALG
+    EE_PARAMS=$CDN_EE_SERVER_PARAMS
+    EE_VALIDITY_DAYS=$CDN_EE_SERVER_VALIDITY_DAYS
+  ;;
+  cdn-client)
+    ISSUING_CA="cdn-ica"
+    SUBJECT=$CDN_EE_CLIENT_SUBJECT_NAME
+    subject_cn_fix
+    
+    EE_ALG=$CDN_EE_CLIENT_ALG
+    EE_PARAMS=$CDN_EE_CLIENT_PARAMS
+    EE_VALIDITY_DAYS=$CDN_EE_CLIENT_VALIDITY_DAYS
   ;;
   iso20022-signer)
+    ISSUING_CA="iso20022-ica"
+    SUBJECT=$ISO20022_EE_SIGNER_SUBJECT_NAME
+    subject_cn_fix
+    
+    EE_ALG=$ISO20022_EE_ALG
+    EE_PARAMS=$ISO20022_EE_PARAMS
+    EE_VALIDITY_DAYS=$ISO20022_EE_VALIDITY_DAYS
   ;;
-  qrcode-signer)
-    PROFILE=$USECASE
+  qrcodes-merchant)
+    ISSUING_CA="qrcodes-ica"
+    SUBJECT=$QRCODES_EE_MERCHANT_SUBJECT_NAME
+    subject_cn_fix
+
+    EE_ALG=$QRCODES_EE_MERCHANT_ALG
+    EE_PARAMS=$QRCODES_EE_MERCHANT_PARAMS
+    EE_VALIDITY_DAYS=$QRCODES_EE_MERCHANT_VALIDITY_DAYS
+    ;;
+  qrcodes-cardholder)
+    ISSUING_CA="qrcodes-ica"
+    SUBJECT=$QRCODES_EE_CARDHOLDER_SUBJECT_NAME
+    subject_cn_fix
+
+    EE_ALG=$QRCODES_EE_CARDHOLDER_ALG
+    EE_PARAMS=$QRCODES_EE_CARDHOLDER_PARAMS
+    EE_VALIDITY_DAYS=$QRCODES_EE_CARDHOLDER_VALIDITY_DAYS
     ;;
   *)
     echo
     echo "Unknown use-case: $USECASE"
     echo
-    echo "Please specify one of the following use-cases:"
-    echo "- generic-server"
-    echo "- generic-client"
-    echo "- code-signer"
-    echo "- cdn-server"
-    echo "- cdn-client"
-    echo "- iso20022-signer"
-    echo "- qrcode-signer"
-    echo
-    echo "For more information, please use the -l|--list option."
+    available_usecases
     echo
     exit 1
     ;;
 esac
 
-# Some Debugging Info
-echo "Loading $PARAMS ..."
-if ! [ -f "$PARAMS" ] ; then
+# Checks we have the chain and the usecase
+if [ "x$TRUST_CHAIN" = "x" ] ; then
   echo
-  echo "    ERROR: params file does not exists ($PARAMS)"
+  echo "    ERROR: missing trust chain name, aborting."
   echo
   exit 1
 fi
 
-# Loads the parameters
-. $PARAMS
+if [ "x$PROFILE" = "x" ] ; then
+  echo
+  echo "    ERROR: missing usecase parameter, aborting."
+  echo
+  exit 1
+fi
 
 # Builds the output direct
 if ! [ "x$EXPORT_DIR" = "x" ] ; then
   SERVICE_DIR="$EXPORT_DIR"
 else
-  if [ "x$TARGET_SERVICE" = "x" ] ; then
-    TARGET_SERVICE="worker"
-  fi
-  SERVICE_DIR="services.d/${TARGET_SERVICE}"
+  SERVICE_DIR="newcerts"
 fi
 
 # Makes the service's directory
@@ -233,7 +394,7 @@ fi
 
 # Builds a default subject, if none was given
 if [ "x$SUBJECT" = "x" ] ; then
-  SUBJECT="/CN=$TARGET_SERVICE"
+  SUBJECT="/CN=$COMMON_NAME"
 fi
 
 # Builds the not after value for OSSL 3.4+
@@ -243,15 +404,12 @@ else
   EE_VALIDITY_OPT="-not_after "$(date -d "+${EE_VALIDITY_DAYS} days" +%Y%m%d%H%M%S)"Z"
 fi
 
-# Selects the right options for the installed OSSL version
-ret=$($OSSL_CMD version | grep "3.0" )
-if [ $? == 0 ] ; then
-  EE_VALIDITY_OPT="-days ${EE_VALIDITY_DAYS}"
-fi
-
 # Generates the private key
-if [ -f "$SERVICE_DIR/$PROFILE.key" ] ; then \
-  $SUDO_CMD rm "$SERVICE_DIR/$PROFILE.key" ; \
+if [ -f "$SERVICE_DIR/$PROFILE.key" ] ; then
+  echo
+  echo "    ERROR: key file already exists, please remove it and try again ($SERVICE_DIR/$PROFILE.key)"
+  echo
+  exit 1
 fi
 
 res=$($OSSL_CMD genpkey -algorithm $EE_ALG $EE_PARAMS -outform "$FORMAT" \
@@ -275,60 +433,52 @@ fi
 # Generates the certificates
 if [ "x$NO_SIGN" = "x" ] ; then
   res=$($OSSL_CMD x509 -req \
-    -CAkey "$OUT_DIR/private/ica.key" -CAkeyform "$FORMAT" \
-      -CA "$OUT_DIR/certs/ica.cer" -CAform "$FORMAT" -inform "$FORMAT" \
+    -CAkey "$PREFIX_DIR/$OUT_DIR/$ISSUING_CA.key" -CAkeyform "$FORMAT" \
+      -CA "$PREFIX_DIR/$OUT_DIR/$ISSUING_CA.cer" -CAform "$FORMAT" -inform "$FORMAT" \
         -outform "$FORMAT" -out "$SERVICE_DIR/$PROFILE.cer" \
-          -in "$SERVICE_DIR/$PROFILE.req" -extfile "profiles/$PROFILE.profile" \
+          -in "$SERVICE_DIR/$PROFILE.req" -extfile "$EXTFILE" \
             $EE_VALIDITY_OPT 2>&1)
-    if [ $? -gt 0 ] ; then
-      echo && echo "ERROR: Cannot sign the CSR with local CA." && echo
-      echo $res && echo
-      exit 1
-    fi
 
-    # Builds the chain files
-    res=$($OSSL_CMD x509 -inform "$FORMAT" -in "$SERVICE_DIR/$PROFILE.cer" 2>&1 > "$SERVICE_DIR/${PROFILE}.chain" \
-          && $OSSL_CMD x509 -inform "$FORMAT" -in "$OUT_DIR/certs/ica.cer" 2>&1 >> "$SERVICE_DIR/${PROFILE}.chain" )
-    if [ $? -gt 0 ] ; then
-      echo && echo "ERROR: Cannot create the local chain file (i.e., server_cert + issuing_ca_cert)." && echo
-      echo $res && echo
-      exit 1
-    fi
-
-    res=$($OSSL_CMD x509 -inform "$FORMAT" -in "$OUT_DIR/certs/root.cer" 2>&1 > "$SERVICE_DIR/root_ca.cer")
-    if [ $? -gt 0 ] ; then
-      echo && echo "ERROR: Cannot create the local root file (${SERVICE_DIR}/root_ca.cer)." && echo
-      echo $res && echo
-      exit 1
-    fi
-
-  # Setting permissions on the private keys
-  if ! [ "x$PERMISSIONS" = "x" ] ; then
-    res=$($SUDO_CMD chmod "$PERMISSIONS" "$SERVICE_DIR/$PROFILE.key" 2>&1)
-    if [ $? -gt 0 ] ; then
-      echo && echo "ERROR: Cannot set permissions on private key to root ($SERVICE_DIR/$PROFILE.key)." && echo
-      echo $res && echo
-      exit 1
-    fi
+  if [ $? -gt 0 ] ; then
+    echo && echo "ERROR: Cannot sign the CSR with local CA." && echo
+    echo $res && echo
+    exit 1
   fi
 
-  if ! [ "x$OWNER" = "x" ] ; then
-    res=$($SUDO_CMD chown $OWNER "$SERVICE_DIR/$PROFILE.key" 2>&1)
-    if [ $? -gt 0 ] ; then
-      echo && echo "ERROR: Cannot set ownership of private key ($OWNER for $SERVICE_DIR/$PROFILE.key)." && echo
-      echo $res && echo
-      exit 1
-    fi
+  # Builds the chain files
+  res=$($OSSL_CMD x509 -inform "$FORMAT" -in "$SERVICE_DIR/$PROFILE.cer" 2>&1 > "$SERVICE_DIR/${PROFILE}.chain" \
+        && $OSSL_CMD x509 -inform "$FORMAT" -in "$PREFIX_DIR/$OUT_DIR/$ISSUING_CA.cer" 2>&1 >> "$SERVICE_DIR/${PROFILE}.chain" )
+  if [ $? -gt 0 ] ; then
+    echo && echo "ERROR: Cannot create the local chain file (i.e., server_cert + issuing_ca_cert)." && echo
+    echo $res && echo
+    exit 1
+  fi
+
+  res=$($OSSL_CMD x509 -inform "$FORMAT" -in "$PREFIX_DIR/$OUT_DIR/root.cer" 2>&1 > "$SERVICE_DIR/root_ca.cer")
+  if [ $? -gt 0 ] ; then
+    echo && echo "ERROR: Cannot create the local root file (${SERVICE_DIR}/root_ca.cer)." && echo
+    echo $res && echo
+    exit 1
   fi
 
 fi
 
-# Provides the Certificate description
-res=$(cd $OUT_DIR \
-      && echo "PKI $OUT_DIR (format: $FORMAT):" \
-      && echo "  Profile: $PROFILE" \
-      && echo "  Algorithm: $EE_ALG" \
-      && echo "  Subject DN: $SUBJECT" \
-      && echo "  Output File ($EE_ALG): $SERVICE_DIR/$PROFILE.cer" )
+if [ "$QUIET" = "no" ] ; then
+
+  # Prints the banner
+  banner
+  echo
+
+  # Prints the certificate bundle info
+  echo "* Certificate bundle created in $SERVICE_DIR:"
+  echo "  - Certificate: $SERVICE_DIR/$PROFILE.cer"
+  echo "  - Private Key: $SERVICE_DIR/$PROFILE.key"
+  echo "  - Chain: $SERVICE_DIR/${PROFILE}.chain"
+  echo "  - Root: $SERVICE_DIR/root_ca.cer"
+  echo "  - CSR: $SERVICE_DIR/$PROFILE.req"
+  echo
+
+
+fi
 
 exit 0

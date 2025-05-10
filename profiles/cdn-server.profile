@@ -27,4 +27,4 @@ keyUsage=critical, digitalSignature
 extendedKeyUsage=serverAuth, 1.3.133.16.840.79.0.3.34
 
 # Subject Alternative Name
-subjectAltName=DNS:$DNS_NAME
+@SUBJECT_ALT_NAME@
