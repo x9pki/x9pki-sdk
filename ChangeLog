@@ -1,4 +1,8 @@
-May 1, 2025 Massimiliano Pala <madwolf@openca.org>
+May 10 2025 Massimiliano Pala <madwolf@openca.org>
+- Added docker image push option to Docker Hub
+- Updated docker image building targets
+
+May 1 2025 Massimiliano Pala <madwolf@openca.org>
 - Added placehoder documentation for ISO20022 usecase.
 - Updated pki target to also build the trust stores.
 - Added makefile target for rebuilding the trust stores.
@@ -7,7 +11,7 @@ May 1, 2025 Massimiliano Pala <madwolf@openca.org>
 - Generated new ML-DSA-87 trust chain.
 - Added new QRCODES usecase ICA and Config Options. Updated several certificate profiles.
 
-Apr 16, 2025 Massimiliano Pala <madwolf@openca.org>
+Apr 16 2025 Massimiliano Pala <madwolf@openca.org>
 - Created documentation directory (docs/). Moved the PKI-GENERATION instructions to the docs/PKI-GENERATION.md file. Linked the documentation to the README.md file.
 - Re-Generated DEV PKI with new parameters. Generated the new 'Generic' ICA for use-cases that can be issued from a generic/common CA.
 - Updated gen-pki.sh script to not overwrite PKI keys if they are already there (prevents deleting the default DEV keys). 
@@ -16,12 +20,13 @@ Apr 16, 2025 Massimiliano Pala <madwolf@openca.org>
 - Added missing files after Test PKI generation.
 - Editorial Fix.
 
-Apr 12, 2025 Massimiliano Pala <madwolf@openca.org>
+Apr 12 2025 Massimiliano Pala <madwolf@openca.org>
 - Added removal of REQs to help with package clutter.
 - Updated generation script for the PKI to provide support for CDN and ISO20022 ICA/Use-Cases.
 - Added standard templates for CAs. Fixes  script to correctly generate one root and one ica for each trust anchor configuration.
 - Updated README instructions.
 - Added Root Keys for all initial supported algorithms.
 
-Dec 10, 2024 Massimiliano Pala <madwolf@openca.org>
+Dec 10 2024 Massimiliano Pala <madwolf@openca.org>
 - Initial commit
+
