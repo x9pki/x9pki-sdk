@@ -306,7 +306,7 @@ for i in params/* ; do
 
       if [ "x$QRCODES_ICA_GENERATE" = "xyes" ] ; then
         echo "  - Signing qrCodes ICA Certificate... "
-        res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
+        res=$(echo $OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
                 -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
                 -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/qrcodes-ica.req" \
                 -out "x9pki-dev/$OUT_DIR/qrcodes-ica.cer" -extfile "profiles/qrcodes-ica.profile" \
@@ -385,7 +385,7 @@ for i in params/* ; do
                 -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
                 -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/generic-ica.req" \
                 -out "x9pki-dev/$OUT_DIR/generic-ica.cer" -extfile "profiles/generic-ica.profile" \
-                $GENERIC_ICA_VALIDITY_OPT $PROVIDER 2>&1)
+                $GEN_ICA_VALIDITY_OPT $PROVIDER 2>&1)
         if [ $? -gt 0 ] ; then
           echo
           echo "ERROR: Cannot create the General Intermediate CA's certificate."
