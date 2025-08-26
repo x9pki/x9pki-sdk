@@ -1,3 +1,7 @@
+Aug 26 2025 Massimiliano Pala <madwolf@openca.org>
+- Fixed a bug in the gen-pki.sh script for the ICA notAfter field setting.
+- Re-generated all Generic ICAs for the different chains (no expiration).
+
 May 10 2025 Massimiliano Pala <madwolf@openca.org>
 - Added docker image push option to Docker Hub
 - Updated docker image building targets
