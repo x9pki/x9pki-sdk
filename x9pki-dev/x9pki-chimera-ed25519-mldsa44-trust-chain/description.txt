@@ -1,0 +1,5 @@
+PKI x9pki-dev/x9pki-chimera-ed25519-mldsa44-trust-chain (format: PEM):
+  Root CA (ed25519): root.cer (root.cer)
+  CDN Intermediate CA (ed25519): cdn-ica.cer
+  ISO20022 Intermediate CA (ed25519): iso20022-ica.cer
+  Generic Intermediate CA (ed25519): generic-ica.cer

@@ -1,0 +1,5 @@
+PKI x9pki-dev/x9pki-chimera-rsa2048-mldsa44-trust-chain (format: PEM):
+  Root CA (rsa): root.cer (root.cer)
+  CDN Intermediate CA (rsa): cdn-ica.cer
+  ISO20022 Intermediate CA (rsa): iso20022-ica.cer
+  Generic Intermediate CA (rsa): generic-ica.cer

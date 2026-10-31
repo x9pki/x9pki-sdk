@@ -1,5 +1,9 @@
 FROM ubuntu:24.10
 
+# Fix some security issues in Ubuntu 24.10
+RUN apt-get remove -y --purge \
+    xz-utils
+
 # Copy the /opt/crypto directory from the openca.org
 # image (openca.org/ubuntu24-crypto:latest) to a fresh
 # new ubuntum:24.04 image.

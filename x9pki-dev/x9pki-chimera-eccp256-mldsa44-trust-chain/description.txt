@@ -1,0 +1,5 @@
+PKI x9pki-dev/x9pki-chimera-eccp256-mldsa44-trust-chain (format: PEM):
+  Root CA (ecdsa): root.cer (root.cer)
+  CDN Intermediate CA (ecdsa): cdn-ica.cer
+  ISO20022 Intermediate CA (ecdsa): iso20022-ica.cer
+  Generic Intermediate CA (ecdsa): generic-ica.cer

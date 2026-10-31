@@ -1,0 +1,5 @@
+PKI x9pki-dev/x9pki-mldsa65-trust-chain (format: PEM):
+  Root CA (ml-dsa-65): root.cer (root.cer)
+  CDN Intermediate CA (ml-dsa-65): cdn-ica.cer
+  ISO20022 Intermediate CA (ml-dsa-65): iso20022-ica.cer
+  Generic Intermediate CA (ml-dsa-65): generic-ica.cer
