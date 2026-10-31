@@ -1,8 +1,81 @@
 #!/bin/bash
 
+          # =========
+          # Variables
+          # =========
+
 # OpenSSL Command Line Tool
 OSSL_CMD=$(type -path openssl)
+X9_SDK_CMD=$(type -path x9-sdk-chimera)
 CURR_DIR=$PWD
+
+          # ===================
+          # Auxillary Functions
+          # ===================
+
+function subject_cn_fix_chimera() {
+
+  local SUBJECT=$1
+  local COMMON_NAME=$2
+
+  if [ "x$SUBJECT" = "x" ]; then
+    SUBJECT="/O=X9 Financial PKI/CN=localhost"
+  fi
+
+  if ! [ "x$COMMON_NAME" = "x" ] ; then
+    res=$( echo "$SUBJECT" | sed -e "s|/CN=[^/]*|/CN=$COMMON_NAME|" )
+    if [ $? -gt 0 ] ; then
+      echo && echo "    ERROR: issue with replacing the CN value" && echo
+      exit 1
+    fi
+    echo "NEW SUBJECT: $res"
+    SUBJECT=$res
+  fi
+
+  # Let's now remove any ',' characters from the SUBJECT
+  SUBJECT=$( echo "$SUBJECT" | sed -e "s|,||g" )
+
+  # Now let's convert any remaining '/' characters to ',' and remove the leading one
+  SUBJECT=$( echo "$SUBJECT" | sed -e "s|/|,|g" -e "s|^,||" )
+
+  echo -e -n "$SUBJECT"
+}
+
+
+function subject_cn_fix() {
+
+  local SUBJECT=$1
+  local COMMON_NAME=$2
+
+  if [ "x$SUBJECT" = "x" ] ; then
+    SUBJECT="/O=X9 Financial PKI/CN=localhost"
+  fi
+
+  if ! [ "x$COMMON_NAME" = "x" ] ; then
+    res=$( echo "$SUBJECT" | sed -e "s|/CN=[^/]*|/CN=$COMMON_NAME|" )
+    if [ $? -gt 0 ] ; then
+      echo && echo "    ERROR: issue with replacing the CN value" && echo
+      exit 1
+    fi
+    SUBJECT=$res
+  fi
+
+  echo -e -n "$SUBJECT"
+}
+
+          # =================
+          # Script Main Logic
+          # =================
+
+# Let's check we have the tools we need
+if [ -z "$OSSL_CMD" ] ; then
+  echo "ERROR: OpenSSL command not found."
+  exit 1
+fi
+if [ -z "$X9_SDK_CMD" ] ; then
+  echo "ERROR: x9-sdk-chimera command not found."
+  exit 1
+fi
 
 # Let's reset the trust store
 echo -n > x9pki-trust-store.pem
@@ -38,28 +111,62 @@ for i in params/* ; do
       echo && echo "NOTICE: Root CA already exists, skipping." && echo
 
     else
-      echo && echo "Generating Root CA:"
-      echo "  - Generating Root key..."
-      res=$($OSSL_CMD genpkey -algorithm $ROOT_ALG $ROOT_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/root.key" \
-                $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo && echo "ERROR: cannot generate the Root key: $res" && echo
-        exit 1;
+      echo && echo "Generating chimera Root CA's keys ... "
+      if [ "$ROOT_HYBRID_TYPE" = "chimera" ]; then
+        echo "  - Generating Root Native and Alt keys ..."
+        res=$($X9_SDK_CMD genpkey \
+                -outform "$FORMAT" \
+                -native_key_alg "$ROOT_ALG" $ROOT_PARAMS  \
+                -native_key_out "x9pki-dev/$OUT_DIR/$ROOT_KEY" \
+                -alt_key_alg "$ROOT_ALT_ALG" $ROOT_ALT_PARAMS \
+                -alt_key_out "x9pki-dev/$OUT_DIR/$ROOT_ALT_KEY" 2>&1 )
+        if [ $? -gt 0 ] ; then
+          echo && echo "ERROR: cannot generate the chimera Root keys: $res" && echo
+          exit 1;
+        fi
+
+      else
+        echo "  - Generating Root key ..."
+        res=$($OSSL_CMD genpkey -algorithm $ROOT_ALG $ROOT_PARAMS \
+                -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/root.key" \
+                  $PROVIDER 2>&1)
+        if [ $? -gt 0 ] ; then
+          echo && echo "ERROR: cannot generate the Root key: $res" && echo
+          exit 1;
+        fi
       fi
 
       # Generates the CSRs
       echo "  - Generating Root CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/root.key" -inform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/root.req" -outform "$FORMAT" \
-              -subj "$ROOT_SUBJECT_NAME" $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot create the Root's CSR ($ROOT_SUBJECT_NAME)."
-        echo
-        echo $res
-        echo
-        exit 1
+      if [ "$ROOT_HYBRID_TYPE" = "chimera" ]; then
+        ROOT_SUBJECT_NAME=$(subject_cn_fix_chimera "$ROOT_SUBJECT_NAME" )
+        res=$($X9_SDK_CMD genreq \
+                -outform "$FORMAT" \
+                -subject_key "x9pki-dev/$OUT_DIR/$ROOT_KEY" \
+                -subject_alt_key "x9pki-dev/$OUT_DIR/$ROOT_ALT_KEY" \
+                -out "x9pki-dev/$OUT_DIR/$ROOT_REQ" \
+                -subject "$ROOT_SUBJECT_NAME" 2>&1)
+        if [ $? -gt 0 ] ; then
+          echo
+          echo "ERROR: Cannot create the chimera Root's CSR ($ROOT_SUBJECT_NAME)."
+          echo
+          echo "$res"
+          echo
+          exit 1
+        fi
+      else
+        ROOT_SUBJECT_NAME=$(subject_cn_fix "$ROOT_SUBJECT_NAME" "$COMMON_NAME")
+        res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/root.key" -inform "$FORMAT" \
+                -out "x9pki-dev/$OUT_DIR/root.req" -outform "$FORMAT" \
+                -subj "$ROOT_SUBJECT_NAME" $PROVIDER 2>&1)
+        if [ $? -gt 0 ] ; then
+          echo
+          echo "ERROR: Cannot create the Root's CSR ($ROOT_SUBJECT_NAME)."
+          echo
+          echo "$res"
+          echo
+          exit 1
+        fi
       fi
 
       if ! [ "x$ROOT_VALIDITY_DAYS" == "x" ] ; then
@@ -78,340 +185,253 @@ for i in params/* ; do
       fi
 
       # Generates the certificates
-      echo "  - Signing Root CA Certificate... "
-      res=$($OSSL_CMD x509 -req -key "x9pki-dev/$OUT_DIR/root.key" \
-              -inform "$FORMAT" -outform "$FORMAT" -in "x9pki-dev/$OUT_DIR/root.req" \
-              -out "x9pki-dev/$OUT_DIR/root.cer" -extfile "profiles/root.profile" \
-              $ROOT_VALIDITY_OPT $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot self-sign the Root's CSR."
-        echo
-        echo $res
-        echo
-        exit 1
+      if [ "$ROOT_HYBRID_TYPE" = "chimera" ]; then
+        echo "  - Signing chimera Root CA Certificate... "
+        res=$($X9_SDK_CMD gencert \
+                -outform "$FORMAT" \
+                -selfsigned \
+                -req "x9pki-dev/$OUT_DIR/$ROOT_REQ" \
+                -ca_native_key "x9pki-dev/$OUT_DIR/$ROOT_KEY" \
+                -ca_alt_key "x9pki-dev/$OUT_DIR/$ROOT_ALT_KEY" \
+                -extfile "profiles/root.profile" \
+                -out "x9pki-dev/$OUT_DIR/$ROOT_CERT" \
+                $ROOT_VALIDITY_OPT 2>&1 )
+        if [ $? -gt 0 ] ; then
+          echo
+          echo "ERROR: Cannot self-sign the Root's CSR."
+          echo
+          echo "$res"
+          echo
+          exit 1
+        fi
+
+      else
+
+        echo "  - Signing Root CA Certificate... "
+        res=$($OSSL_CMD x509 -req -key "x9pki-dev/$OUT_DIR/$ROOT_KEY" \
+                -inform "$FORMAT" -outform "$FORMAT" -in "x9pki-dev/$OUT_DIR/$ROOT_REQ" \
+                -out "x9pki-dev/$OUT_DIR/$ROOT_CERT" -extfile "profiles/root.profile" \
+                $ROOT_VALIDITY_OPT $PROVIDER 2>&1)
+        if [ $? -gt 0 ] ; then
+          echo
+          echo "ERROR: Cannot self-sign the Root's CSR."
+          echo
+          echo "$res"
+          echo
+          exit 1
+        fi
       fi
     fi
 
     # Cleanup
-    [ -f "x9pki-dev/$OUT_DIR/root.req" ] && rm -f "x9pki-dev/$OUT_DIR/root.req"
+    [ -f "x9pki-dev/$OUT_DIR/$ROOT_REQ" ] && rm -f "x9pki-dev/$OUT_DIR/$ROOT_REQ"
 
   else
     echo "Root CA generation skipped."
   fi
 
-            # ============
-            # CDN Use-Case
-            # ============
+  ## Here we use a new approach and we cycle through the ICA_LIST
+  ## array of variables names. Then we use the variable names to
+  ## access the corresponding values using indirect expansion. This allows us to
+  ## handle multiple ICAs in a loop without duplicating code.
+  for ICA in "${ICA_LIST[@]}"; do
 
-  if [ "x$CDN_ICA_GENERATE" = "xyes" -o "x$CDN_ICA_GENERATE" = "xreq" ] ; then
+    ## Gets the Variables Names
+    ICA_GENERATE_VAR="${ICA}_GENERATE"
+    ICA_HYBRID_TYPE_VAR="${ICA}_HYBRID_TYPE"
 
-    if [ -f "x9pki-dev/$OUT_DIR/cdn-ica.key" ] ; then
-      # ICA already exists, skipping
-      echo "* CDN ICA key already exists, skipping."
-    else
-      echo && echo "Generating CDN ICA:"
-      # Generating the ICA key
-      echo "  - Generating CDN ICA key..."
-      res=$($OSSL_CMD genpkey -algorithm $CDN_ICA_ALG $CDN_ICA_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/cdn-ica.key" \
-              $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo && echo "ERROR: cannot generate the ICA key: $res" && echo
-        exit 1;
-      fi
+    ICA_ALG_VAR="${ICA}_ALG"
+    ICA_KEY_VAR="${ICA}_KEY"
+    ICA_PARAMS_VAR="${ICA}_PARAMS"
 
-      # Generating the ICA request
-      echo "  - Generating CDN ICA CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/cdn-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/cdn-ica.req" -subj "$CDN_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot create the Intermediate CA's CSR."
-        echo
-        echo $res
-        echo
-        exit 1
-      fi
+    ICA_ALT_ALG_VAR="${ICA}_ALT_ALG"
+    ICA_ALT_KEY_VAR="${ICA}_ALT_KEY"
+    ICA_ALT_PARAMS_VAR="${ICA}_ALT_PARAMS"
 
-      if ! [ "x$CDN_ICA_DAYS" == "x" ] ; then
-        CDN_ICA_VALIDITY_OPT="-days ${CDN_ICA_VALIDITY_DAYS}"
-      else
-        if ! [ "x$CDN_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
-          CDN_ICA_VALIDITY_OPT="-not_before $CDN_ICA_VALIDITY_NOTBEFORE"
-        else
-          CDN_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
-        fi
-        if ! [ "x$CDN_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
-          CDN_ICA_VALIDITY_OPT="-not_after $CDN_ICA_VALIDITY_NOTAFTER"
-        else
-          CDN_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
-        fi
-      fi
+    ICA_SUBJECT_NAME_VAR="${ICA}_SUBJECT_NAME"
+    ICA_VALIDITY_NOT_BEFORE_VAR="${ICA}_VALIDITY_NOT_BEFORE"
+    ICA_VALIDITY_NOT_AFTER_VAR="${ICA}_VALIDITY_NOT_AFTER"
 
-      if [ "x$CDN_ICA_GENERATE" = "xyes" ] ; then
-        echo "  - Signing CDN ICA Certificate... "
-        res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
-                -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
-                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/cdn-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/cdn-ica.cer" -extfile "profiles/cdn-ica.profile" \
-                $CDN_ICA_VALIDITY_OPT $PROVIDER 2>&1)
-        if [ $? -gt 0 ] ; then
-          echo
-          echo "ERROR: Cannot create the CDN Intermediate CA's certificate."
-          echo
-          echo $res
-          echo
-          exit 1
-        fi
+    ICA_REQ_VAR="${ICA}_REQ"
+    ICA_CERT_VAR="${ICA}_CERT"
 
-        # Cleanup
-        rm -f "x9pki-dev/$OUT_DIR/cdn-ica.req"
+    ## Gets the Values for the ICA Variables
+    ICA_GENERATE="${!ICA_GENERATE_VAR}"
+    ICA_HYBRID_TYPE="${!ICA_HYBRID_TYPE_VAR}"
+
+    ICA_ALG="${!ICA_ALG_VAR}"
+    ICA_KEY="${!ICA_KEY_VAR}"
+    ICA_PARAMS="${!ICA_PARAMS_VAR}"
+
+    ICA_ALT_ALG="${!ICA_ALT_ALG_VAR}"
+    ICA_ALT_KEY="${!ICA_ALT_KEY_VAR}"
+    ICA_ALT_PARAMS="${!ICA_ALT_PARAMS_VAR}"
+
+    ICA_SUBJECT_NAME="${!ICA_SUBJECT_NAME_VAR}"
+    ICA_VALIDITY_NOT_BEFORE="${!ICA_VALIDITY_NOT_BEFORE_VAR}"
+    ICA_VALIDITY_NOT_AFTER="${!ICA_VALIDITY_NOT_AFTER_VAR}"
+
+    ICA_REQ="${!ICA_REQ_VAR}"
+    ICA_CERT="${!ICA_CERT_VAR}"
+
+    echo
+    echo "* Processing ICA:"
+    echo "  - ICA Name ..................... : $ICA"
+    echo "  - ICA Hybrid Type .............. : $ICA_HYBRID_TYPE"
+    echo "  - ICA Generate ................. : $ICA_GENERATE"
+    echo "  - ICA Alg and Params ........... : $ICA_ALG $ICA_PARAMS"
+    echo "  - ICA Alt Alg and Alt Params ... : $ICA_ALT_ALG $ICA_ALT_PARAMS"
+    echo "  - ICA Subject Name ............. : $ICA_SUBJECT_NAME"
+    echo "  - ICA Validity Not Before ...... : $ICA_VALIDITY_NOT_BEFORE"
+    echo "  - ICA Validity Not After ....... : $ICA_VALIDITY_NOT_AFTER"
+    echo "  - ICA Key ...................... : $ICA_KEY ($ICA_PARAMS)"
+    echo "  - ICA Alt Key .................. : $ICA_ALT_KEY ($ICA_ALT_PARAMS)"
+    echo "  - ICA Request .................. : $ICA_REQ"
+    echo "  - ICA Cert ..................... : $ICA_CERT"
+    echo
+
+    if [ "x$ICA_GENERATE" = "xyes" -o "x$ICA_GENERATE" = "xreq" ] ; then
+
+      if [ -f "x9pki-dev/$OUT_DIR/$ICA_KEY" ] ; then
+        # ICA already exists, skipping
+        echo "* $ICA key already exists, skipping."
 
       else
-        echo "  - CDN ICA Request Signing skipped."
+
+        # Generating the ICA key
+
+        echo
+        echo "* Generating Keys, CSR, and Certificate:"
+
+        if [ "$ICA_HYBRID_TYPE" = "chimera" ]; then
+          echo -E -n "  - Generating chimera $ICA key..."
+          res=$($X9_SDK_CMD genpkey \
+                  -outform "$FORMAT" \
+                  -native_key_alg "$ICA_ALG" $ICA_PARAMS \
+                  -native_key_out "x9pki-dev/$OUT_DIR/$ICA_KEY" \
+                  -alt_key_alg "$ICA_ALT_ALG" $ICA_ALT_PARAMS \
+                  -alt_key_out "x9pki-dev/$OUT_DIR/$ICA_ALT_KEY" 2>&1)
+          if [ $? -gt 0 ] ; then
+            echo && echo "ERROR: cannot generate the ICA key: $res" && echo
+            exit 1;
+          fi
+        else
+          echo -E -n "  - Generating $ICA key..."
+          res=$($OSSL_CMD genpkey -algorithm $ICA_ALG $ICA_PARAMS \
+                  -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/$ICA_KEY" \
+                  $PROVIDER 2>&1)
+          if [ $? -gt 0 ] ; then
+            echo && echo "ERROR: cannot generate the ICA key: $res" && echo
+            exit 1;
+          fi
+        fi
+        echo " Ok"
+
+        # Generating the ICA request
+        if [ "$ICA_HYBRID_TYPE" = "chimera" ]; then
+          echo -E -n "  - Generating chimera $ICA CSR..."
+          ICA_SUBJECT_NAME=$(subject_cn_fix_chimera "$ICA_SUBJECT_NAME" )
+          res=$($X9_SDK_CMD genreq \
+                  -outform "$FORMAT" \
+                  -subject_key "x9pki-dev/$OUT_DIR/$ICA_KEY" \
+                  -subject_alt_key "x9pki-dev/$OUT_DIR/$ICA_ALT_KEY" \
+                  -subject "$ICA_SUBJECT_NAME" \
+                  -out "x9pki-dev/$OUT_DIR/$ICA.req" 2>&1)
+          if [ $? -gt 0 ] ; then
+            echo
+            echo && echo "ERROR: Cannot create the Intermediate CA's CSR." && echo
+            echo
+            echo "$res"
+            echo
+            exit 1
+          fi
+        else
+          echo -E -n "  - Generating $ICA CSR..."
+          res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/$ICA_KEY" -outform "$FORMAT" -outform "$FORMAT" \
+                  -out "x9pki-dev/$OUT_DIR/$ICA.req" -subj "$ICA_SUBJECT_NAME" $PROVIDER 2>&1)
+          if [ $? -gt 0 ] ; then
+            echo
+            echo && echo "ERROR: Cannot create the Intermediate CA's CSR." && echo
+            echo
+            echo "$res"
+            echo
+            exit 1
+          fi
+        fi
+        echo "Ok"
+
+        if ! [ "x$ICA_VALIDITY_DAYS" == "x" ] ; then
+          ICA_VALIDITY_OPT="-days ${ICA_VALIDITY_DAYS}"
+        else
+          if ! [ "x$ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
+            ICA_VALIDITY_OPT="-not_before $ICA_VALIDITY_NOTBEFORE"
+          else
+            ICA_VALIDITY_OPT="-not_before 20250101000000Z"
+          fi
+          if ! [ "x$ICA_VALIDITY_NOTAFTER" == "x" ] ; then
+            ICA_VALIDITY_OPT="-not_after $ICA_VALIDITY_NOTAFTER"
+          else
+            ICA_VALIDITY_OPT="-not_after 99991231125959Z"
+          fi
+        fi
+
+        if [ "x$ICA_GENERATE" = "xyes" ] ; then
+          if [ "$ROOT_HYBRID_TYPE" = "chimera" ]; then
+            echo -E -n "  - Signing chimera CDN ICA Certificate... "
+            res=$($X9_SDK_CMD gencert \
+                    -outform "$FORMAT" \
+                    -req "x9pki-dev/$OUT_DIR/$ICA.req" \
+                    -ca_native_key "x9pki-dev/$OUT_DIR/$ROOT_KEY" \
+                    -ca_alt_key "x9pki-dev/$OUT_DIR/$ROOT_ALT_KEY" \
+                    -ca_cert "x9pki-dev/$OUT_DIR/$ROOT_CERT" \
+                    -extfile "profiles/cdn-ica.profile" \
+                    -out "x9pki-dev/$OUT_DIR/$ICA_CERT" \
+                    $ICA_VALIDITY_OPT 2>&1)
+            if [ $? -gt 0 ] ; then
+              echo
+              echo "ERROR: Cannot create the CDN Intermediate CA's certificate."
+              echo
+              echo "$res"
+              echo
+              exit 1
+            fi
+          else
+            echo -E -n "  - Signing CDN ICA Certificate... "
+            res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/$ROOT_KEY" -CAkeyform "$FORMAT" \
+                    -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
+                    -CA "x9pki-dev/$OUT_DIR/$ROOT_CERT" -in "x9pki-dev/$OUT_DIR/$ICA.req" \
+                    -out "x9pki-dev/$OUT_DIR/$ICA_CERT" -extfile "profiles/cdn-ica.profile" \
+                    $ICA_VALIDITY_OPT $PROVIDER 2>&1)
+            if [ $? -gt 0 ] ; then
+              echo
+              echo "ERROR: Cannot create the CDN Intermediate CA's certificate."
+              echo
+              echo "$res"
+              echo
+              exit 1
+            fi
+          fi
+          echo "Ok"
+
+          # Cleanup
+          rm -f "x9pki-dev/$OUT_DIR/$ICA.req"
+
+        else
+          echo "  - CDN ICA Request Signing skipped."
+        fi
       fi
     fi
 
+  done
 
-  else
-    echo "CDN ICA generation skipped."
-  fi
-
-
-            # =================
-            # ISO20022 Use-Case
-            # =================
-
-  if [ "x$ISO20022_ICA_GENERATE" = "xyes" -o "x$ISO20022_ICA_GENERATE" = "xreq" ] ; then
-
-    if [ -f "x9pki-dev/$OUT_DIR/iso20022-ica.key" ] ; then
-      # ICA already exists, skipping
-      echo "* ISO20022 ICA key already exists, skipping."
-    else
-      # Generating the ICA key
-      echo && echo "Generating ISO20022 ICA:"
-      echo "  - Generating ISO20022 ICA key..."
-      res=$($OSSL_CMD genpkey -algorithm $ISO20022_ICA_ALG $ISO20022_ICA_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/iso20022-ica.key" \
-              $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo && echo "ERROR: cannot generate the ICA key: $res" && echo
-        exit 1;
-      fi
-
-      # Generating the ICA request
-      echo "  - Generating ISO20022 ICA CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/iso20022-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/iso20022-ica.req" -subj "$ISO20022_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot create the ISO20022 Intermediate CA's CSR."
-        echo
-        echo $res
-        echo
-        exit 1
-      fi
-
-      if ! [ "x$ISO20022_ICA_DAYS" == "x" ] ; then
-        ISO20022_ICA_VALIDITY_OPT="-days ${ISO20022_ICA_VALIDITY_DAYS}"
-      else
-        if ! [ "x$ISO20022_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
-          ISO20022_ICA_VALIDITY_OPT="-not_before $ISO20022_ICA_VALIDITY_NOTBEFORE"
-        else
-          ISO20022_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
-        fi
-        if ! [ "x$ISO20022_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
-          ISO20022_ICA_VALIDITY_OPT="-not_after $ISO20022_ICA_VALIDITY_NOTAFTER"
-        else
-          ISO20022_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
-        fi
-      fi
-
-      if [ "x$ISO20022_ICA_GENERATE" = "xyes" ] ; then
-        echo "  - Signing ISO20022 ICA Certificate... "
-        res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
-                -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
-                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/iso20022-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/iso20022-ica.cer" -extfile "profiles/iso20022-ica.profile" \
-                $ISO20022_ICA_VALIDITY_OPT $PROVIDER 2>&1)
-        if [ $? -gt 0 ] ; then
-          echo
-          echo "ERROR: Cannot create the ISO20022 Intermediate CA's certificate."
-          echo
-          echo $res
-          echo
-          exit 1
-        fi
-
-        # Cleanup
-        rm -f "x9pki-dev/$OUT_DIR/iso20022-ica.req"
-
-      else
-        echo "  - ISO20022 ICA Request Signing skipped."
-      fi
-    fi
-
-  else
-    echo "ISO20022 ICA generation skipped."
-  fi
-
-
-            # ================
-            # qrCodes Use-Case
-            # ================
-
-  if [ "x$QRCODES_ICA_GENERATE" = "xyes" -o "x$QRCODES_ICA_GENERATE" = "xreq" ] ; then
-
-    if [ -f "x9pki-dev/$OUT_DIR/qrcodes-ica.key" ] ; then
-      echo "* qrCodes ICA key already exists, skipping."
-    else
-      echo && echo "Generating qrCodes ICA:"
-      echo "  - Generating qrCodes ICA key..."
-      res=$($OSSL_CMD genpkey -algorithm $QRCODES_ICA_ALG $QRCODES_ICA_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/qrcodes-ica.key" \
-              $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo && echo "ERROR: cannot generate the ICA key: $res" && echo
-        exit 1;
-      fi
-
-      # Generating the ICA request
-      echo "  - Generating qrCodes ICA CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/qrcodes-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/qrcodes-ica.req" -subj "$QRCODES_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot create the Intermediate CA's CSR."
-        echo
-        echo $res
-        echo
-        exit 1
-      fi
-
-      if ! [ "x$QRCODES_ICA_DAYS" == "x" ] ; then
-        QRCODES_ICA_VALIDITY_OPT="-days ${QRCODES_ICA_VALIDITY_DAYS}"
-      else
-        if ! [ "x$QRCODES_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
-          QRCODES_ICA_VALIDITY_OPT="-not_before $QRCODES_ICA_VALIDITY_NOTBEFORE"
-        else
-          QRCODES_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
-        fi
-        if ! [ "x$QRCODES_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
-          QRCODES_ICA_VALIDITY_OPT="-not_after $QRCODES_ICA_VALIDITY_NOTAFTER"
-        else
-          QRCODES_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
-        fi
-      fi
-
-      if [ "x$QRCODES_ICA_GENERATE" = "xyes" ] ; then
-        echo "  - Signing qrCodes ICA Certificate... "
-        res=$(echo $OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
-                -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
-                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/qrcodes-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/qrcodes-ica.cer" -extfile "profiles/qrcodes-ica.profile" \
-                $QRCODES_ICA_VALIDITY_OPT $PROVIDER 2>&1)
-        if [ $? -gt 0 ] ; then
-          echo
-          echo "ERROR: Cannot create the qrCodes Intermediate CA's certificate."
-          echo
-          echo $res
-          echo
-          exit 1
-        fi
-
-        # Cleanup
-        rm -f "x9pki-dev/$OUT_DIR/qrcodes-ica.req"
-
-      else
-        echo "  - qrCodes ICA Request Signing skipped."
-      fi
-    fi
-
-  else
-    echo "* qrCodes ICA generation skipped."
-  fi
-
-            # ================
-            # Generic Use-Case
-            # ================
-
-  if [ "x$GENERIC_ICA_GENERATE" = "xyes" -o "x$GENERIC_ICA_GENERATE" = "xreq" ] ; then
-
-    if [ -f "x9pki-dev/$OUT_DIR/generic-ica.key" ] ; then
-      echo "* GEN ICA key already exists, skipping."
-    else
-      echo && echo "Generating Generic ICA:"
-      echo "  - Generating Generic ICA key..."
-      res=$($OSSL_CMD genpkey -algorithm $GENERIC_ICA_ALG $GENERIC_ICA_PARAMS \
-              -outform "$FORMAT" -out "x9pki-dev/$OUT_DIR/generic-ica.key" \
-              $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo && echo "ERROR: cannot generate the ICA key: $res" && echo
-        exit 1;
-      fi
-
-      # Generating the ICA request
-      echo "  - Generating Generic ICA CSR..."
-      res=$($OSSL_CMD req -new -key "x9pki-dev/$OUT_DIR/generic-ica.key" -outform "$FORMAT" -outform "$FORMAT" \
-              -out "x9pki-dev/$OUT_DIR/generic-ica.req" -subj "$GENERIC_ICA_SUBJECT_NAME" $PROVIDER 2>&1)
-      if [ $? -gt 0 ] ; then
-        echo
-        echo "ERROR: Cannot create the Intermediate CA's CSR."
-        echo
-        echo $res
-        echo
-        exit 1
-      fi
-
-      if ! [ "x$GENERIC_ICA_DAYS" == "x" ] ; then
-        GEN_ICA_VALIDITY_OPT="-days ${GENERIC_ICA_VALIDITY_DAYS}"
-      else
-        if ! [ "x$GENERIC_ICA_VALIDITY_NOTBEFORE" == "x" ] ; then
-          GEN_ICA_VALIDITY_OPT="-not_before $GENERIC_ICA_VALIDITY_NOTBEFORE"
-        else
-          GEN_ICA_VALIDITY_OPT="-not_before 20250101000000Z"
-        fi
-        if ! [ "x$GENERIC_ICA_VALIDITY_NOTAFTER" == "x" ] ; then
-          GEN_ICA_VALIDITY_OPT="-not_after $GENERIC_ICA_VALIDITY_NOTAFTER"
-        else
-          GEN_ICA_VALIDITY_OPT="-not_after 99991231125959Z"
-        fi
-      fi
-
-      if [ "x$GENERIC_ICA_GENERATE" = "xyes" ] ; then
-        echo "  - Signing General ICA Certificate... "
-        res=$($OSSL_CMD x509 -req -CAkey "x9pki-dev/$OUT_DIR/root.key" -CAkeyform "$FORMAT" \
-                -CAform "$FORMAT" -inform "$FORMAT" -outform "$FORMAT" \
-                -CA "x9pki-dev/$OUT_DIR/root.cer" -in "x9pki-dev/$OUT_DIR/generic-ica.req" \
-                -out "x9pki-dev/$OUT_DIR/generic-ica.cer" -extfile "profiles/generic-ica.profile" \
-                $GEN_ICA_VALIDITY_OPT $PROVIDER 2>&1)
-        if [ $? -gt 0 ] ; then
-          echo
-          echo "ERROR: Cannot create the General Intermediate CA's certificate."
-          echo
-          echo $res
-          echo
-          exit 1
-        fi
-
-        # Cleanup
-        rm -f "x9pki-dev/$OUT_DIR/generic-ica.req"
-
-      else
-        echo "  - General ICA Request Signing skipped."
-      fi
-    fi
-
-  else
-    echo "Generic ICA generation skipped."
-  fi
-
+  echo
+  echo "* Finished ($OUT_DIR) [ ${#ICA_LIST[0]} ICAs ]"
+  echo
 
   # Provides the PKI description
   res=$(echo \
       && echo "PKI x9pki-dev/$OUT_DIR (format: $FORMAT):" > "x9pki-dev/$OUT_DIR/description.txt" \
-      && echo "  Root CA ($ROOT_ALG): root.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
+      && echo "  Root CA ($ROOT_ALG): root.cer (root.cer)" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo "  CDN Intermediate CA ($CDN_ICA_ALG): cdn-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo "  ISO20022 Intermediate CA ($ISO20022_ICA_ALG): iso20022-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \
       && echo "  Generic Intermediate CA ($GENERIC_ICA_ALG): generic-ica.cer" >> "x9pki-dev/$OUT_DIR/description.txt" \

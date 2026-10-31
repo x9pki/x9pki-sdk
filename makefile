@@ -85,3 +85,16 @@ docker-push:
 	@echo "Docker image pushed successfully."
 	@echo ""
 
+dist: TARGET=x9pki-sdk
+dist:
+	@echo && echo "Creating distribution package..."
+	@VERSION=$$(cat VERSION 2>/dev/null || echo "unknown") ; \
+	 mkdir -p "$(TARGET)-$$VERSION" && \
+	 cp -r bin docs params profiles x9pki-dev \
+	 ChangeLog Dockerfile env.sh LICENSE makefile \
+	 x9pki-trust-store.p7b x9pki-trust-store.pem \
+	 README-UAT-PROD.md README.md "$(TARGET)-$$VERSION/" && \
+	 tar -czf "$(TARGET)-$$VERSION.tar.gz" "$(TARGET)-$$VERSION" && \
+	 rm -rf "$(TARGET)-$$VERSION" && \
+	 echo "Distribution package created: $(TARGET)-$$VERSION.tar.gz" && \
+	 echo ""

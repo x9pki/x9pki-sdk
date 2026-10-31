@@ -1,3 +1,9 @@
+Oct 30 2026 Massimiliano Pala <madwolf@openca.org>
+- Generated new community roots for chimera hybrids chains via the x9-sdk-tools package.
+- Generated new ML-DSA-65 trust chain that was missing from the distributied community chains.
+- Added support for the x9-sdk-tools package for pki and certificate generation (private repo - ask for access)
+- Minor editorial fixes throughout the codebase and documentation.
+
 Aug 26 2025 Massimiliano Pala <madwolf@openca.org>
 - Fixed a bug in the gen-pki.sh script for the ICA notAfter field setting.
 - Re-generated all Generic ICAs for the different chains (no expiration).
